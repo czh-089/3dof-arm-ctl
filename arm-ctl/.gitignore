@@ -7,9 +7,10 @@ build/
 .venv/
 venv/
 
-# Generated results (except .gitkeep)
+# Generated results (except .gitkeep and README assets)
 results/*
 !results/.gitkeep
+!results/7_compare_anim.gif
 
 # Model checkpoints
 *.pt

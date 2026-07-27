@@ -1,93 +1,100 @@
-# 3-DOF 机械臂轨迹跟踪控制：PID、计算力矩控制与神经网络前馈对比
+# 3-DOF 机械臂轨迹跟踪：PID vs 计算力矩 vs 神经网络前馈
 
-## 摘要
+<p align="center">
+  <img src="results/7_compare_anim.gif" width="720" alt="PID vs CTC vs NNFF 对比动画"/>
+</p>
 
-本项目针对 3 自由度空间机械臂的轨迹跟踪问题，实现并对比了三种控制策略：独立关节 PID 控制（无模型）、计算力矩控制（CTC，基于解析动力学模型）和神经网络前馈控制（NNFF，基于数据驱动的逆动力学学习）。仿真在倾斜 45° 平面上以圆形和八字形轨迹进行测试，覆盖慢速和快速两种条件。结果表明：CTC 达到最优跟踪精度（RMSE < 0.003 rad，末端等效误差 < 2 mm），NNFF 次之（RMSE ~0.004 rad），PID 最差（RMSE ~0.09 rad）。
+<p align="center">
+  <b>CTC 跟踪精度 0.0012 rad · 末端等效误差 < 2 mm · NN 前馈比 PID 提升 20–30 倍</b>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python"/>
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
+  <img src="https://img.shields.io/badge/tests-17%20passed-brightgreen" alt="Tests"/>
+</p>
+
+---
+
+## Quick Start
+
+```bash
+pip install -r requirements.txt
+python scripts/4_train_nn.py           # 训练 NN 逆动力学（~2 min）
+python scripts/6_compare.py            # PID vs CTC vs NNFF 对比
+python scripts/7b_compare_anim.py      # 并排对比动画
+pytest tests/ -v                        # 单元测试（17 个）
+```
+
+---
+
+## 结果
+
+4 种轨迹条件 × 3 种控制器，关节空间 RMSE（rad）：
+
+| 轨迹 | PID（无模型） | CTC（精确模型） | NNFF（学习模型） |
+|------|:----------:|:------------:|:--------------:|
+| 圆形 T=4s | 0.087 | **0.0012** | 0.0030 |
+| 圆形 T=3s | 0.093 | **0.0019** | 0.0043 |
+| 八字 T=5s | 0.081 | **0.0013** | 0.0031 |
+| 八字 T=3s | 0.093 | **0.0027** | 0.0039 |
+
+物理意义（0.9 m 臂展）：
+
+| 控制器 | 关节误差 | 末端等效 |
+|--------|:------:|:------:|
+| CTC | ~0.1° | **< 2 mm** |
+| NNFF | ~0.2° | ~3.6 mm |
+| PID | ~5° | ~8 cm |
+
+---
+
+## 背景
+
+本项目针对 3-DOF 空间机械臂的轨迹跟踪问题，实现并对比三种控制策略：
+
+1. **PID** — 无模型，纯反馈硬扛非线性。精度最差，但零依赖。
+2. **CTC（计算力矩控制）** — 解析动力学反馈线性化。理论上限。
+3. **NNFF（神经网络前馈）** — 数据驱动逆动力学学习。不依赖解析模型，从 5 万组采样中学习。
+
+三者放在同一个框架下对比，比单独实现一个控制器更能体现对"控制理论 + 深度学习"结合的系统理解。
 
 ---
 
 ## 系统描述
 
-### 机械臂构型
+### 机械臂
 
-3-DOF 拟人臂：底座旋转（θ₁，绕 z 轴）→ 肩部俯仰（θ₂）→ 肘部俯仰（θ₃）。连杆 2 与连杆 3 共轴，无腕关节。臂在由 θ₁ 决定的竖直平面内运动。
-
-物理参数：
+3-DOF 拟人臂：底座旋转 (θ₁, 绕 z) → 肩部俯仰 (θ₂) → 肘部俯仰 (θ₃)。连杆 2 与连杆 3 共轴，无腕关节。
 
 | 参数 | l₁ | l₂ | l₃ | m₁ | m₂ | m₃ | g |
 |------|----|----|----|----|----|----|---|
 | 值 | 0.4 m | 0.3 m | 0.2 m | 2.0 kg | 1.5 kg | 1.0 kg | 9.81 m/s² |
 
-### 动力学模型
+### 动力学
 
-采用 Euler-Lagrange 方法建立动力学方程，使用点质量近似：
+Euler-Lagrange 方法，点质量近似，4 阶 RK4 积分（步长 1 ms）：
 
 $$M(\mathbf{q})\ddot{\mathbf{q}} + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}} + G(\mathbf{q}) = \boldsymbol{\tau}$$
 
-其中 $M \in \mathbb{R}^{3\times 3}$ 为质量矩阵（$M = \sum m_i J_{v_i}^T J_{v_i}$），$C$ 由 Christoffel 符号通过有限差分计算，$G$ 为重力项。仿真采用 4 阶 Runge-Kutta 积分，步长 1 ms。
+### 控制器接口
 
----
+三者共享统一接口：`compute_torque(t, q, dq, q_des, dq_des, ddq_des) → τ`
 
-## 控制器设计
+| 控制器 | 公式 | 特点 |
+|--------|------|------|
+| **PID** | $\tau_i = K_p e_i + K_d \dot{e}_i + K_i \int e_i dt$ | 独立关节 + anti-windup |
+| **CTC** | $\tau = M(\ddot{q}_{des} + K_p e + K_d \dot{e}) + C\dot{q} + G$ | 反馈线性化，$\omega_n=20,\zeta=0.8$ |
+| **NNFF** | $\tau = f_{NN}(q_{des},\dot{q}_{des},\ddot{q}_{des}) + K_p e + K_d \dot{e}$ | MLP(9→256→512→256→3), 50k 样本 |
 
-三种控制器共享统一接口：`compute_torque(t, q, dq, q_des, dq_des, ddq_des) → τ`。
+### 轨迹
 
-### PID 控制（无模型 Baseline）
+45° 倾斜平面上两条轨迹，末端 Jacobian 传播速度/加速度：
 
-独立关节 PID + clamping anti-windup：
+- 圆形：$u = R\cos(\omega t), v = R\sin(\omega t)$，$R=0.12$ m
+- 八字形：$u = a\sin(\omega t), v = b\sin(2\omega t)$，$a=0.12,b=0.06$ m
 
-$$\tau_i = K_p e_i + K_d \dot{e}_i + K_i \int e_i \, dt$$
-
-参数通过手动调试确定：$K_p = 100$, $K_d = 20$, $K_i = 10$。
-
-### CTC（计算力矩控制）
-
-基于反馈线性化，利用解析动力学矩阵完全抵消系统非线性：
-
-$$\tau = M(\mathbf{q})\left(\ddot{\mathbf{q}}_{des} + K_p \mathbf{e} + K_d \dot{\mathbf{e}}\right) + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}} + G(\mathbf{q})$$
-
-其中 $K_p = \omega_n^2$, $K_d = 2\zeta\omega_n$，取 $\omega_n = 20$, $\zeta = 0.8$。
-
-### NNFF（神经网络前馈控制）
-
-前馈网络学习逆动力学映射，PD 项修正残差：
-
-$$\tau = f_{NN}(\mathbf{q}_{des}, \dot{\mathbf{q}}_{des}, \ddot{\mathbf{q}}_{des}) + K_p \mathbf{e} + K_d \dot{\mathbf{e}}$$
-
-网络架构：9→256→512→256→3（ReLU 激活，Adam 优化器）。在 50,000 组随机采样的 $(\mathbf{q}, \dot{\mathbf{q}}, \ddot{\mathbf{q}})$ 上训练，标签由 `inverse_dynamics()` 生成。输入输出均经 z-score 标准化。
-
----
-
-## 轨迹生成
-
-两条轨迹定义在倾斜 45° 平面上（绕 x 轴旋转），通过逆运动学映射到关节空间：
-
-- **圆形**：$u = R\cos(\omega t)$, $v = R\sin(\omega t)$，$R = 0.12$ m，中心 (0.3, 0.2, 0.3) m
-- **八字形**：$u = a\sin(\omega t)$, $v = b\sin(2\omega t)$，$a = 0.12$ m, $b = 0.06$ m
-
-逆运动学分两步求解：$\theta_1 = \text{atan2}(y, x)$ 确定臂平面，然后在平面内解双连杆几何。速度与加速度通过末端 Jacobian 传播。
-
----
-
-## 实验结果
-
-### 定量对比
-
-4 种轨迹条件 × 3 种控制器 = 12 组实验。指标为关节空间 RMSE（单位：rad）：
-
-| 轨迹条件 | PID | CTC | NNFF |
-|----------|:---:|:---:|:----:|
-| 圆形 (T=4s) | 0.087 | **0.0012** | 0.0030 |
-| 圆形 (T=3s) | 0.093 | **0.0019** | 0.0043 |
-| 八字形 (T=5s) | 0.081 | **0.0013** | 0.0031 |
-| 八字形 (T=3s) | 0.093 | **0.0027** | 0.0039 |
-
-### 分析
-
-1. **CTC 在所有条件下表现最优**，跟踪误差接近数值积分精度。这验证了 Euler-Lagrange 动力学推导和反馈线性化实现的正确性。
-2. **NN 前馈显著优于 PID**（提升约 20–30 倍），说明网络成功从数据中学习了逆动力学的近似映射，且能泛化到训练集外的轨迹条件。
-3. **PID 在快速轨迹（T=3s）下误差增大**，反映无模型方法在高动态场景下受非线性耦合和重力影响较大。
-4. 三种方法的性能排序与预期一致：CTC > NNFF ≫ PID，验证了引入模型信息对控制精度提升的价值。
+逆运动学：$\theta_1 = \text{atan2}(y, x)$ 定平面 → 平面内双连杆几何解 $\theta_2,\theta_3$。
 
 ---
 
@@ -95,32 +102,35 @@ $$\tau = f_{NN}(\mathbf{q}_{des}, \dot{\mathbf{q}}_{des}, \ddot{\mathbf{q}}_{des
 
 ```
 src/
-  arm.py            # 正运动学、Jacobian、M/C/G 矩阵、RK4 积分
+  arm.py            # 正运动学、Jacobian、M/C/G、RK4
   controllers.py    # PID (anti-windup)、CTC、NN Feedforward
-  trajectories.py   # 倾斜平面轨迹生成 + 逆运动学
-  simulate.py       # 共享仿真运行器
+  trajectories.py   # 倾斜平面轨迹 + 逆运动学
+  simulate.py       # 共享仿真器
   viz.py            # 3D 可视化、对比图、动画
-scripts/            # 按编号顺序执行：被动 → PID → CTC → 训练 → NN 测试 → 对比 → 动画
-tests/              # pytest 测试（17 个）
+scripts/
+  1_passive.py           # 自由摆动 → 能量守恒验证
+  2_pid.py               # PID 轨迹跟踪
+  3_ctc.py               # CTC 轨迹跟踪
+  4_train_nn.py          # 采样 + 训练逆动力学网络
+  5_nn_test.py           # NN 前馈测试
+  6_compare.py           # 三方法综合对比
+  7_animate.py           # 单控制器动画
+  7b_compare_anim.py     # 三臂并排动画
+tests/               # pytest（17 tests）
 ```
 
 ---
 
-## 运行
+## 引用
 
-```bash
-pip install -r requirements.txt
-python scripts/4_train_nn.py        # 训练逆动力学网络
-python scripts/6_compare.py          # 12 组对比实验
-python scripts/7b_compare_anim.py    # 并排动画
-pytest tests/ -v                     # 单元测试
+```bibtex
+@misc{3dof-arm-ctl,
+  author = {czh-089},
+  title  = {3-DOF Robot Arm Trajectory Tracking: PID vs CTC vs NN Feedforward},
+  year   = {2026},
+  url    = {https://github.com/czh-089/3dof-arm-ctl}
+}
 ```
-
----
-
-## 依赖
-
-Python ≥ 3.10 · NumPy · PyTorch · SciPy · Matplotlib · Pillow
 
 ## License
 
