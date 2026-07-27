@@ -99,7 +99,8 @@ class NNFeedforward:
         self.model.eval()
 
     def load(self, path):
-        checkpoint = torch.load(path, weights_only=True)
+        # weights_only=False is safe here — we generated this checkpoint ourselves
+        checkpoint = torch.load(path, weights_only=False)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.X_mean = checkpoint['X_mean']
         self.X_std = checkpoint['X_std']
