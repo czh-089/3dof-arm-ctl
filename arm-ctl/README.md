@@ -1,69 +1,121 @@
-# 3-DOF Robot Arm Trajectory Tracking
+# 3-DOF 机械臂轨迹跟踪：PID · 计算力矩 · 神经网络
 
-Three controllers (PID, Computed Torque Control, Neural Network Feedforward) driving a 3-DOF spatial robot arm to track 3D trajectories — comparing model-free, analytical model-based, and learned model-based approaches.
+> 一个神经网络，从未见过物理公式，能学会控制机械臂吗？
 
-## Results
+这个项目用三种截然不同的方法驱动同一个 3 自由度机械臂去画圆和八字，然后让它们正面交锋。结果很直观——**知道物理的赢了，但学出来的也差得不远。**
 
-| Condition | PID (no model) | CTC (exact model) | NNFF (learned model) |
-|-----------|---------------|-------------------|----------------------|
-| Circle Slow (4s) | 0.0868 rad | **0.0012 rad** | 0.0030 rad |
-| Circle Fast (3s) | 0.0927 rad | **0.0019 rad** | 0.0043 rad |
-| Figure-8 (5s) | 0.0813 rad | **0.0013 rad** | 0.0031 rad |
-| Figure-8 Fast (3s) | 0.0931 rad | **0.0027 rad** | 0.0039 rad |
+---
 
-CTC achieves ~0.1 degree tracking error on a 0.9m arm — equivalent to <2mm end-effector error.
+## 先看结果
 
-## Quick Start
+在 0.9 米臂展上跟踪倾斜平面上的圆形轨迹，三种控制器的表现：
+
+| 轨迹条件 | PID（纯反馈） | CTC（精确模型） | NNFF（神经网络） |
+|----------|:-----------:|:-------------:|:--------------:|
+| 圆慢 (4s) | 0.087 rad | **0.0012 rad** | 0.003 rad |
+| 圆快 (3s) | 0.093 rad | **0.0019 rad** | 0.004 rad |
+| 八字 (5s) | 0.081 rad | **0.0013 rad** | 0.003 rad |
+| 八字快 (3s) | 0.093 rad | **0.0027 rad** | 0.004 rad |
+
+换算成物理意义：
+
+| 控制器 | 关节平均误差 | 等效末端误差 |
+|--------|:---------:|:---------:|
+| CTC | ~0.1° | **< 2 mm** |
+| NN 前馈 | ~0.2° | ~3.6 mm |
+| PID | ~5° | ~8 cm |
+
+**CTC 在 0.9m 臂展上的平均轨迹偏差不到 2 毫米。** NN 没有显式学过任何动力学方程——给它 5 万个 "如果关节在这里、这么动，需要多大扭矩" 的样本，它自己从数据里找规律。结果比纯 PID 好了 20 倍。
+
+---
+
+## 这有什么用
+
+保研/面试简历中的一个实打实的控制+深度学习交叉项目。三句话讲清楚：
+
+1. **PID** = 不知道模型，纯靠误差硬掰 → 基准线
+2. **CTC** = 动力学方程在手，精确抵消非线性 → 理论上限
+3. **NNFF** = 不给公式，从数据自学逆动力学 → 学习能力的证明
+
+三者放在一起比，比单独做一个有意思得多。
+
+---
+
+## 快速开始
 
 ```bash
+# 安装依赖
 pip install -r requirements.txt
 
-# Train the NN inverse dynamics model (required for NNFF)
+# 训练神经网络逆动力学模型（只需一次，~2 分钟）
 python scripts/4_train_nn.py
 
-# Run the comprehensive comparison
+# 三种方法对比（4 种轨迹 × 3 个控制器 = 12 组实验）
 python scripts/6_compare.py
 
-# Generate animations
-python scripts/7_animate.py
+# 生成并排对比动画
 python scripts/7b_compare_anim.py
+
+# 跑测试
+pytest tests/ -v
 ```
 
-## Project Structure
+---
+
+## 项目结构
 
 ```
 arm-ctl/
   src/
-    arm.py            # Forward kinematics + dynamics (M, C, G, RK4)
-    controllers.py    # PID, CTC, NNFeedforward controllers
-    trajectories.py   # Circle/Figure-8 trajectories on tilted plane + IK
-    viz.py            # 3D visualization, comparison plots, animations
-    simulate.py       # Shared simulation runner
-  scripts/            # Run sequentially: 1 → 2 → 3 → 4 → 5 → 6 → 7
-  tests/              # Pytest test suite
-  results/            # Generated plots and animations
+    arm.py            # 正运动学 + 动力学 (M/C/G 矩阵, RK4 积分)
+    controllers.py    # PID / CTC / NN前馈 —— 统一 compute_torque() 接口
+    trajectories.py   # 圆 & 八字轨迹 (45° 倾斜平面) + 逆运动学
+    simulate.py       # 共享仿真运行器
+    viz.py            # 3D 可视化 + 对比图 + 动画
+  scripts/
+    1_passive.py      # 无控制自由摆动 → 验证能量守恒
+    2_pid.py          # PID 轨迹跟踪
+    3_ctc.py          # 计算力矩控制
+    4_train_nn.py     # 采样 5 万组 → 训练逆动力学网络
+    5_nn_test.py      # NN 前馈测试
+    6_compare.py      # 三方法综合对比
+    7_animate.py      # 单控制器动画
+    7b_compare_anim.py # 三臂并排对比动画
+  tests/              # 17 个 pytest 测试
 ```
 
-## How It Works
+---
 
-### Arm Model
-3-DOF anthropomorphic arm: base rotation (θ₁, about z) → shoulder pitch (θ₂) → elbow pitch (θ₃). Links 2 and 3 share the same rotation axis (no wrist joint). Dynamics derived from Euler-Lagrange with point-mass approximation:
+## 机械臂模型
+
+3-DOF 拟人臂：底座旋转 (θ₁) → 肩部俯仰 (θ₂) → 肘部俯仰 (θ₃)。连杆 2 和 3 共轴（无腕关节）。欧拉-拉格朗日方程 + 点质量近似：
 
 ```
-M(q) ddq + C(q,dq) dq + G(q) = τ
+M(q) q̈ + C(q,q̇) q̇ + G(q) = τ
 ```
 
-### Controllers
-- **PID** — Independent joint control, no dynamics model. Anti-windup.
-- **CTC** — Feedback linearization using exact analytical M, C, G matrices.
-- **NNFF** — Learned inverse dynamics (9→256→512→256→3 MLP) + PD feedback correction.
+物理参数：l₁=0.4m, l₂=0.3m, l₃=0.2m, m=[2.0, 1.5, 1.0]kg
 
-### Trajectories
-Circle and figure-8 patterns defined on a 45° tilted plane, mapped to 3D via rotation.
+---
 
-## Tech Stack
+## 三种控制器
 
-Python 3.13+, NumPy, PyTorch, SciPy, Matplotlib
+### PID —— "我不知道你在哪，我只知道你不对"
+独立关节 PID + anti-windup。不依赖任何模型，纯粹靠比例-积分-微分反馈硬扛重力、科里奥利力、关节耦合。**实现最简单，精度最差。**
+
+### CTC（计算力矩控制） —— "我精确知道你的动力学"
+反馈线性化：`τ = M(q)·(q̈_des + Kp·e + Kd·ė) + C(q,q̇)·q̇ + G(q)`。用解析动力学矩阵完全抵消非线性项，剩下的线性误差由 PD 项消除。**理论最优，实践中接近完美。**
+
+### NNFF（神经网络前馈） —— "我学了你的规律，但不保证全对"
+9→256→512→256→3 MLP（ReLU, Adam）在 5 万组随机采样的 (q, q̇, q̈) → τ 数据上训练，学习逆动力学映射。控制器输出 = NN 预测 + PD 修正。**不知道物理公式，但能从数据中逼近。训练集外推性受限于采样分布。**
+
+---
+
+## 技术栈
+
+Python 3.13 · NumPy · PyTorch · SciPy · Matplotlib
+
+---
 
 ## License
 
