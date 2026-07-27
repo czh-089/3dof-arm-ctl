@@ -1,0 +1,5 @@
+# CJK-friendly defaults for this project
+# Matplotlib auto-loads this file when running from D:\better\ (or subdirectories)
+
+font.sans-serif: Microsoft YaHei, Noto Sans SC, SimHei, DejaVu Sans, Bitstream Vera Sans, sans-serif
+axes.unicode_minus: False
