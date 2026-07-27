@@ -11,6 +11,7 @@ venv/
 results/*
 !results/.gitkeep
 !results/7_compare_anim.gif
+!results/4_train_nn_loss.png
 
 # Model checkpoints
 *.pt

@@ -1,6 +1,4 @@
 """arm-ctl/scripts/7b_compare_anim.py — 三臂并排对比动画 GIF"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')

@@ -1,6 +1,4 @@
 """arm-ctl/scripts/4_train_nn.py — 采样训练数据 + 训练逆动力学网络"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import torch
 import torch.nn as nn

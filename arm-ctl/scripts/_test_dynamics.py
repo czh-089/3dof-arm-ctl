@@ -1,6 +1,4 @@
 """验证 forward_dynamics 和 inverse_dynamics 互为逆运算"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 from arm import ArmDynamics
 
@@ -15,7 +13,6 @@ ddq_recovered = dyn.forward_dynamics(q, dq, tau)
 print(f"M(q) 条件数: {np.linalg.cond(dyn.mass_matrix(q)):.2f}")
 print(f"G(q): {dyn.gravity_vector(q)}")
 print(f"C(q,dq)*dq: {dyn.coriolis_torque(q, dq)}")
-print(f"τ = {tau}")
 print(f"ddq_true = {ddq_true}")
 print(f"ddq_recovered = {ddq_recovered}")
 print(f"误差: {np.max(np.abs(ddq_recovered - ddq_true)):.2e}")

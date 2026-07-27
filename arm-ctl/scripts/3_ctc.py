@@ -1,6 +1,4 @@
 """arm-ctl/scripts/3_ctc.py — 计算力矩控制轨迹跟踪"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')

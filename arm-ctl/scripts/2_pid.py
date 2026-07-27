@@ -1,6 +1,4 @@
 """arm-ctl/scripts/2_pid.py — PID 控制圆+八字轨迹跟踪"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')

@@ -1,11 +1,8 @@
 """pytest fixtures for arm-ctl tests"""
-import sys
 import os
+import sys
 import pytest
 import numpy as np
-
-# Make src/ importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
 @pytest.fixture(scope='module')

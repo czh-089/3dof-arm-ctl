@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
   <img src="https://img.shields.io/badge/tests-17%20passed-brightgreen" alt="Tests"/>
+  <a href="https://github.com/czh-089/3dof-arm-ctl/actions"><img src="https://github.com/czh-089/3dof-arm-ctl/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
 </p>
 
 ---
@@ -19,11 +20,11 @@
 ## Quick Start
 
 ```bash
-pip install -r requirements.txt
-python scripts/4_train_nn.py           # 训练 NN 逆动力学（~2 min）
-python scripts/6_compare.py            # PID vs CTC vs NNFF 对比
-python scripts/7b_compare_anim.py      # 并排对比动画
-pytest tests/ -v                        # 单元测试（17 个）
+pip install -e .                         # 安装包 + 依赖
+python scripts/4_train_nn.py             # 训练 NN 逆动力学（~2 min）
+python scripts/6_compare.py              # PID vs CTC vs NNFF 对比
+python scripts/7b_compare_anim.py        # 并排对比动画
+pytest tests/ -v                          # 单元测试（17 个）
 ```
 
 ---
@@ -86,6 +87,11 @@ $$M(\mathbf{q})\ddot{\mathbf{q}} + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}
 | **PID** | $\tau_i = K_p e_i + K_d \dot{e}_i + K_i \int e_i dt$ | 独立关节 + anti-windup |
 | **CTC** | $\tau = M(\ddot{q}_{des} + K_p e + K_d \dot{e}) + C\dot{q} + G$ | 反馈线性化，$\omega_n=20,\zeta=0.8$ |
 | **NNFF** | $\tau = f_{NN}(q_{des},\dot{q}_{des},\ddot{q}_{des}) + K_p e + K_d \dot{e}$ | MLP(9→256→512→256→3), 50k 样本 |
+
+<p align="center">
+  <img src="results/4_train_nn_loss.png" width="400" alt="训练曲线"/>
+  <br/><sub>NN 逆动力学训练曲线（Adam, 200 epochs）</sub>
+</p>
 
 ### 轨迹
 

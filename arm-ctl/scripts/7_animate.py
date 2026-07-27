@@ -1,6 +1,4 @@
 """arm-ctl/scripts/7_animate.py — 生成三控制器跟踪动画 GIF"""
-import sys
-sys.path.insert(0, 'src')
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

@@ -1,6 +1,4 @@
 """arm-ctl/scripts/5_nn_test.py — NN 前馈控制器轨迹跟踪测试"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')

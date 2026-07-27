@@ -1,6 +1,4 @@
 """arm-ctl/scripts/6_compare.py — PID vs CTC vs NNFF 综合对比"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')

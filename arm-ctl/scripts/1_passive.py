@@ -1,6 +1,4 @@
 """arm-ctl/scripts/1_passive.py — 无控制自由摆动，验证动力学合理性"""
-import sys
-sys.path.insert(0, 'src')
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -16,8 +14,7 @@ q0 = np.array([0.3, 0.6, -1.0])
 dq0 = np.zeros(3)
 
 res = run_passive(dyn, q0, dq0, duration=5.0, dt=0.001)
-times, q_hist, dq_hist, energy_hist = (
-    res['times'], res['q_hist'], res['dq_hist'], res['energy_hist'])
+times, q_hist, energy_hist = res['times'], res['q_hist'], res['energy_hist']
 
 e_drift = (energy_hist[-1] - energy_hist[0]) / abs(energy_hist[0]) * 100
 
