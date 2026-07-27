@@ -13,18 +13,16 @@ def plot_arm_3d(ax, q, fk, color='steelblue', alpha=0.8, label=None):
 
 
 def animate_tracking(times, q_history, q_ref_history, pos_ref_history, fk,
-                     trajectory, filename='arm_tracking.gif', fps=30):
+                     filename='arm_tracking.gif', fps=30):
     """生成 3D 跟踪动画 GIF"""
     from matplotlib.animation import FuncAnimation
 
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
 
-    # 确定固定视角范围
-    all_pos = np.concatenate([pos_ref_history, pos_ref_history], axis=0)
-    x_range = [all_pos[:, 0].min() - 0.3, all_pos[:, 0].max() + 0.3]
-    y_range = [all_pos[:, 1].min() - 0.3, all_pos[:, 1].max() + 0.3]
-    z_range = [-0.1, 0.9]
+    x_range = [pos_ref_history[:, 0].min() - 0.3, pos_ref_history[:, 0].max() + 0.3]
+    y_range = [pos_ref_history[:, 1].min() - 0.3, pos_ref_history[:, 1].max() + 0.3]
+    z_range = [pos_ref_history[:, 2].min() - 0.1, pos_ref_history[:, 2].max() + 0.1]
 
     def update(frame):
         ax.clear()
@@ -53,16 +51,25 @@ def animate_tracking(times, q_history, q_ref_history, pos_ref_history, fk,
 def plot_comparison(results_dict, save_path='results/comparison.png'):
     """绘制多控制器对比图
 
-    results_dict: {name: {'times': t, 'e_history': e_hist, 'tau_history': tau_hist,
-                          'pos_ref': pos, 'pos_actual': pos}, ...}
+    results_dict: {name: {'times': t, 'e_hist': e, 'tau_hist': tau,
+                          'pos_ref': pos, 'pos_hist': pos}, ...}
+    也兼容旧键名: e_history, tau_history, pos_actual
     """
     fig = plt.figure(figsize=(14, 10))
+
+    def _get(data, *keys):
+        for k in keys:
+            if k in data:
+                return data[k]
+        return None
 
     # 左上: 跟踪误差范数曲线
     ax1 = fig.add_subplot(2, 2, 1)
     for name, data in results_dict.items():
-        e_norm = np.linalg.norm(data['e_history'], axis=1)
-        ax1.plot(data['times'], e_norm, lw=1.5, label=name)
+        e = _get(data, 'e_hist', 'e_history')
+        if e is not None:
+            e_norm = np.linalg.norm(e, axis=1)
+            ax1.plot(data['times'], e_norm, lw=1.5, label=name)
     ax1.set_xlabel('Time (s)')
     ax1.set_ylabel(r'$\|e\|$ (rad)')
     ax1.set_title('Tracking Error Norm')
@@ -72,8 +79,13 @@ def plot_comparison(results_dict, save_path='results/comparison.png'):
     # 右上: RMSE 柱状图
     ax2 = fig.add_subplot(2, 2, 2)
     names = list(results_dict.keys())
-    rmse_vals = [np.sqrt(np.mean(np.sum(d['e_history']**2, axis=1)))
-                 for d in results_dict.values()]
+    rmse_vals = []
+    for d in results_dict.values():
+        e = _get(d, 'e_hist', 'e_history')
+        if e is not None:
+            rmse_vals.append(np.sqrt(np.mean(np.sum(e**2, axis=1))))
+        elif 'rmse' in d:
+            rmse_vals.append(d['rmse'])
     colors = ['steelblue', 'darkorange', 'seagreen'][:len(names)]
     bars = ax2.bar(names, rmse_vals, color=colors)
     for bar, val in zip(bars, rmse_vals):
@@ -85,7 +97,9 @@ def plot_comparison(results_dict, save_path='results/comparison.png'):
     # 左下: 关节 1 力矩对比
     ax3 = fig.add_subplot(2, 2, 3)
     for name, data in results_dict.items():
-        ax3.plot(data['times'], data['tau_history'][:, 0], lw=1, label=name)
+        tau = _get(data, 'tau_hist', 'tau_history')
+        if tau is not None:
+            ax3.plot(data['times'], tau[:, 0], lw=1, label=name)
     ax3.set_xlabel('Time (s)')
     ax3.set_ylabel(r'$\tau_1$ (Nm)')
     ax3.set_title('Joint 1 Torque')
@@ -95,11 +109,11 @@ def plot_comparison(results_dict, save_path='results/comparison.png'):
     # 右下: 3D 跟踪路径
     ax4 = fig.add_subplot(2, 2, 4, projection='3d')
     first_key = list(results_dict.keys())[0]
-    ref = results_dict[first_key].get('pos_ref')
+    ref = _get(results_dict[first_key], 'pos_ref')
     if ref is not None:
         ax4.plot(ref[:, 0], ref[:, 1], ref[:, 2], 'gray', ls='--', lw=1, label='Ref')
     for (name, data), c in zip(results_dict.items(), colors):
-        pos = data.get('pos_actual')
+        pos = _get(data, 'pos_hist', 'pos_actual')
         if pos is not None:
             ax4.plot(pos[:, 0], pos[:, 1], pos[:, 2], lw=1, color=c, label=name)
     ax4.set_xlabel('X (m)')

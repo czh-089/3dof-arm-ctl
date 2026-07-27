@@ -94,18 +94,20 @@ class NNFeedforward:
         self.X_std = None
         self.Y_mean = None
         self.Y_std = None
+        self._device = 'cpu'
         if model_path:
             self.load(model_path)
         self.model.eval()
 
     def load(self, path):
-        # weights_only=False is safe here — we generated this checkpoint ourselves
         checkpoint = torch.load(path, weights_only=False)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.X_mean = checkpoint['X_mean']
         self.X_std = checkpoint['X_std']
         self.Y_mean = checkpoint['Y_mean']
         self.Y_std = checkpoint['Y_std']
+        # 获取模型参数所在设备
+        self._device = next(self.model.parameters()).device
 
     def compute_torque(self, t, q, dq, q_des, dq_des, ddq_des):
         e = q_des - q
@@ -114,8 +116,9 @@ class NNFeedforward:
         x = np.concatenate([q_des, dq_des, ddq_des])
         if self.X_mean is not None:
             x = (x - self.X_mean) / self.X_std
+        x_t = torch.tensor(x, dtype=torch.float32).to(self._device)
         with torch.no_grad():
-            y_norm = self.model(torch.tensor(x, dtype=torch.float32)).numpy()
+            y_norm = self.model(x_t).cpu().numpy()
         tau_ff = y_norm * self.Y_std + self.Y_mean if self.Y_mean is not None else y_norm
 
         tau_pd = self.kp * e + self.kd * de

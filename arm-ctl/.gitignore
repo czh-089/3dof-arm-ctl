@@ -1,1 +1,23 @@
-results/nn_inverse_dynamics.pt
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Generated results (except .gitkeep)
+results/*
+!results/.gitkeep
+
+# Model checkpoints
+*.pt
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
