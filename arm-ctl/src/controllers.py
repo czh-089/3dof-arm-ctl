@@ -1,5 +1,7 @@
 """arm-ctl/src/controllers.py — PID / CTC / NNFF 控制器"""
 import numpy as np
+import torch
+import torch.nn as nn
 
 
 class PIDController:
@@ -56,3 +58,64 @@ class CTCController:
         c = self.dyn.coriolis_torque(q, dq)
         G = self.dyn.gravity_vector(q)
         return M @ ddq_ref + c + G
+
+
+class InverseDynamicsNet(nn.Module):
+    """9→256→512→256→3 逆动力学网络
+    输入: [q(3), dq(3), ddq(3)] = 9维
+    输出: τ(3)
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(9, 256), nn.ReLU(),
+            nn.Linear(256, 512), nn.ReLU(),
+            nn.Linear(512, 256), nn.ReLU(),
+            nn.Linear(256, 3),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class NNFeedforward:
+    """NN 前馈 + PD 反馈: τ = NN(q, dq, ddq_des) + Kp·e + Kd·ė
+
+    NN 学习逆动力学，PD 修正残差。输入使用参考轨迹 (q_des, dq_des, ddq_des)
+    作为前馈——这是标准的前馈+反馈架构。
+    """
+
+    def __init__(self, model_path=None, kp=50.0, kd=10.0):
+        self.kp = kp
+        self.kd = kd
+        self.model = InverseDynamicsNet()
+        self.X_mean = None
+        self.X_std = None
+        self.Y_mean = None
+        self.Y_std = None
+        if model_path:
+            self.load(model_path)
+        self.model.eval()
+
+    def load(self, path):
+        checkpoint = torch.load(path, weights_only=True)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.X_mean = checkpoint['X_mean']
+        self.X_std = checkpoint['X_std']
+        self.Y_mean = checkpoint['Y_mean']
+        self.Y_std = checkpoint['Y_std']
+
+    def compute_torque(self, t, q, dq, q_des, dq_des, ddq_des):
+        e = q_des - q
+        de = dq_des - dq
+
+        x = np.concatenate([q_des, dq_des, ddq_des])
+        if self.X_mean is not None:
+            x = (x - self.X_mean) / self.X_std
+        with torch.no_grad():
+            y_norm = self.model(torch.tensor(x, dtype=torch.float32)).numpy()
+        tau_ff = y_norm * self.Y_std + self.Y_mean if self.Y_mean is not None else y_norm
+
+        tau_pd = self.kp * e + self.kd * de
+        return tau_ff + tau_pd
