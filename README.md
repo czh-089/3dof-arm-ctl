@@ -104,7 +104,7 @@ $$M(\mathbf{q})\ddot{\mathbf{q}} + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}
 | 八字形 | $u = a\sin(\omega t),\; v = b\sin(2\omega t)$ | $a=0.12,\;b=0.06$ m |
 
 逆运动学：
-$$\theta_1 = \operatorname{atan2}(y, x)$$
+$$\theta_1 = \mathrm{atan2}(y, x)$$
 定平面后，平面内双连杆几何求解 $\theta_2,\theta_3$。
 
 ---
