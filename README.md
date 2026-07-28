@@ -87,7 +87,7 @@ $$M(\mathbf{q})\ddot{\mathbf{q}} + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}
 |--------|------|------|
 | **PID** | $\tau_i = K_p e_i + K_d \dot{e}_i + K_i \int e_i dt$ | 独立关节 + anti-windup |
 | **CTC** | $\tau = M(\ddot{q}_{des} + K_p e + K_d \dot{e}) + C\dot{q} + G$ | 反馈线性化，$\omega_n=20,\zeta=0.8$ |
-| **NNFF** | $\tau = f\sb{NN}(q\sb{des},\dot{q}\sb{des},\ddot{q}\sb{des}) + K\sb p e + K\sb d \dot{e}$ | MLP(9→256→512→256→3), 50k 样本 |
+| **NNFF** | $\tau = f_{NN}(q_d,\dot{q}_d,\ddot{q}_d) + K_p e + K_d \dot{e}$ | MLP(9→256→512→256→3), 50k 样本 |
 
 <p align="center">
   <img src="arm-ctl/results/4_train_nn_loss.png" width="400" alt="训练曲线"/>
