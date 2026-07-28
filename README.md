@@ -98,10 +98,14 @@ $$M(\mathbf{q})\ddot{\mathbf{q}} + C(\mathbf{q},\dot{\mathbf{q}})\dot{\mathbf{q}
 
 45° 倾斜平面上两条轨迹，末端 Jacobian 传播速度/加速度：
 
-- 圆形：$u = R\cos(\omega t), v = R\sin(\omega t)$，$R=0.12$ m
-- 八字形：$u = a\sin(\omega t), v = b\sin(2\omega t)$，$a=0.12,b=0.06$ m
+| 轨迹 | 平面坐标 | 参数 |
+|------|---------|------|
+| 圆形 | $u = R\cos(\omega t),\; v = R\sin(\omega t)$ | $R=0.12$ m |
+| 八字形 | $u = a\sin(\omega t),\; v = b\sin(2\omega t)$ | $a=0.12,\;b=0.06$ m |
 
-逆运动学：$\theta_1 = \text{atan2}(y, x)$ 定平面 → 平面内双连杆几何解 $\theta_2,\theta_3$。
+逆运动学：
+$$\theta_1 = \operatorname{atan2}(y, x)$$
+定平面后，平面内双连杆几何求解 $\theta_2,\theta_3$。
 
 ---
 
